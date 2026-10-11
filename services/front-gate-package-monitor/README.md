@@ -7,9 +7,12 @@ baseline, then requires a change to persist across multiple samples.
 ## Behavior
 
 - Captures one 960px-wide sub-stream frame every 10 seconds.
-- Analyzes only the front-step ROI.
+- Analyzes only the upper parcel-shelf ROI, excluding the wall, lower shelf and
+  sunlit paving.
 - Compensates for global brightness changes.
 - Uses morphological filtering and minimum contour area to reject noise.
+- Requires one sufficiently large continuous changed region, so scattered
+  moving shadows do not add up to a parcel alert.
 - Requires three consecutive samples to enter or clear the package state.
 - Keeps multiple empty-scene baselines for different daylight conditions.
 - Adds a new baseline every 30 minutes only while the scene is confidently

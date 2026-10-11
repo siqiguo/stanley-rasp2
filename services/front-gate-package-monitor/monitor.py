@@ -31,6 +31,8 @@ FRAME_WIDTH = int(os.getenv("FRAME_WIDTH", "960"))
 ROI = tuple(float(v) for v in os.getenv("ROI", "0.02,0.10,0.47,0.58").split(","))
 PRESENT_THRESHOLD = float(os.getenv("PRESENT_THRESHOLD", "0.035"))
 CLEAR_THRESHOLD = float(os.getenv("CLEAR_THRESHOLD", "0.016"))
+PRESENT_LARGEST_THRESHOLD = float(os.getenv("PRESENT_LARGEST_THRESHOLD", "0.18"))
+CLEAR_LARGEST_THRESHOLD = float(os.getenv("CLEAR_LARGEST_THRESHOLD", "0.13"))
 CONFIRM_SAMPLES = int(os.getenv("CONFIRM_SAMPLES", "3"))
 
 BASELINE_FILE = DATA_DIR / "baseline.jpg"
@@ -241,13 +243,18 @@ def monitor_once() -> None:
     with lock:
         previous = bool(state["package_present"])
         if not previous:
-            state["candidate_samples"] = state["candidate_samples"] + 1 if changed_ratio >= PRESENT_THRESHOLD else 0
+            present_candidate = (
+                changed_ratio >= PRESENT_THRESHOLD
+                and largest_ratio >= PRESENT_LARGEST_THRESHOLD
+            )
+            state["candidate_samples"] = state["candidate_samples"] + 1 if present_candidate else 0
             state["clear_samples"] = 0
             if state["candidate_samples"] >= CONFIRM_SAMPLES:
                 state["package_present"] = True
                 state["last_change"] = now
         else:
-            state["clear_samples"] = state["clear_samples"] + 1 if changed_ratio <= CLEAR_THRESHOLD else 0
+            clear_candidate = largest_ratio <= CLEAR_LARGEST_THRESHOLD
+            state["clear_samples"] = state["clear_samples"] + 1 if clear_candidate else 0
             state["candidate_samples"] = 0
             if state["clear_samples"] >= CONFIRM_SAMPLES:
                 state["package_present"] = False
