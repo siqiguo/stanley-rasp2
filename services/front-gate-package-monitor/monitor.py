@@ -27,6 +27,9 @@ CALIBRATION_TOKEN = os.environ["CALIBRATION_TOKEN"]
 BIND_HOST = os.getenv("BIND_HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8791"))
 CHECK_INTERVAL = float(os.getenv("CHECK_INTERVAL", "10"))
+BURST_INTERVAL = float(os.getenv("BURST_INTERVAL", "10"))
+BURST_DURATION = float(os.getenv("BURST_DURATION", "90"))
+TRIGGER_ALLOWED_IP = os.getenv("TRIGGER_ALLOWED_IP", "192.168.3.254")
 FRAME_WIDTH = int(os.getenv("FRAME_WIDTH", "960"))
 ROI = tuple(float(v) for v in os.getenv("ROI", "0.02,0.10,0.47,0.58").split(","))
 PRESENT_THRESHOLD = float(os.getenv("PRESENT_THRESHOLD", "0.035"))
@@ -46,6 +49,8 @@ app = Flask(__name__)
 lock = threading.Lock()
 started_at = time.time()
 stop_event = threading.Event()
+wake_event = threading.Event()
+burst_until = 0.0
 
 state: dict = {
     "ok": False,
@@ -277,6 +282,7 @@ def monitor_once() -> None:
 
 
 def monitor_loop() -> None:
+    global burst_until
     while not stop_event.is_set():
         started = time.monotonic()
         try:
@@ -290,7 +296,11 @@ def monitor_loop() -> None:
                     error=f"{type(exc).__name__}: {exc}",
                 )
                 atomic_write_json(STATE_FILE, state)
-        stop_event.wait(max(1.0, CHECK_INTERVAL - (time.monotonic() - started)))
+        with lock:
+            burst_active = time.time() < burst_until
+        interval = BURST_INTERVAL if burst_active else CHECK_INTERVAL
+        wake_event.wait(max(1.0, interval - (time.monotonic() - started)))
+        wake_event.clear()
 
 
 @app.get("/api/status")
@@ -299,6 +309,18 @@ def status_endpoint() -> Response:
         payload = dict(state)
     payload["uptime_seconds"] = round(time.time() - started_at)
     return jsonify(payload)
+
+
+@app.post("/api/check")
+def event_check_endpoint() -> Response:
+    global burst_until
+    if TRIGGER_ALLOWED_IP and request.remote_addr != TRIGGER_ALLOWED_IP:
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    with lock:
+        burst_until = max(burst_until, time.time() + BURST_DURATION)
+        state["burst_until"] = datetime.fromtimestamp(burst_until).astimezone().isoformat(timespec="seconds")
+    wake_event.set()
+    return jsonify({"ok": True, "burst_seconds": BURST_DURATION})
 
 
 @app.get("/snapshot.jpg")

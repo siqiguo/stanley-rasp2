@@ -6,7 +6,10 @@ baseline, then requires a change to persist across multiple samples.
 
 ## Behavior
 
-- Captures one 960px-wide sub-stream frame every 10 seconds.
+- Captures one 960px-wide sub-stream frame every 120 seconds normally.
+- A trusted HA camera/doorbell event starts a 90-second burst at one frame
+  every 10 seconds, allowing the existing three-sample confirmation to finish
+  promptly after the visitor leaves.
 - Analyzes only the upper parcel-shelf ROI, excluding the wall, lower shelf and
   sunlit paving.
 - Compensates for global brightness changes.
@@ -26,6 +29,7 @@ object as a parcel, food delivery, person, animal, or plant.
 ## HTTP
 
 - `GET /api/status`
+- `POST /api/check` from the configured trusted HA host
 - `GET /snapshot.jpg`
 - `GET /baseline.jpg`
 - `POST /api/calibrate` with `X-Calibration-Token`
